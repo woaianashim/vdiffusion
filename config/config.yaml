@@ -1,0 +1,11 @@
+hydra:
+  job:
+    chdir: True
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+dataset: 
+  _target_: dataset.Flower
+model:
+  _target_: unet.UNet
+epochs: 100
+resume: 
