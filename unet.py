@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class UNet(nn.Module):
     def __init__(self, channels=128, in_channels=3, depth=3, time_channels=128):
         super().__init__()
@@ -19,9 +20,9 @@ class UNet(nn.Module):
                 Attention(mid_channels),
                 ResBlock(mid_channels, time_channels, mid_channels),
             ])
-        self.decoder = Decoder()
+        self.decoder = Decoder(channels=channels, in_channels=in_channels, depth=depth, time_channels=time_channels)
 
-    def forward(self, x, time):
+    def forward(self, x, time=0):
         time = self.time_input(timestep_embedding(time, self.time_channels))
         h, hs = self.encoder(x, time)
         for block in self.mid_blocks:
@@ -44,7 +45,7 @@ class Encoder(nn.Module):
             if i >= depth-2:
                 self.blocks.append(Attention(channels*2**i))
 
-    def forward(self, x, time):
+    def forward(self, x, time=0):
         h = self.input(x)
         hs = []
         for block in self.blocks:
@@ -52,6 +53,7 @@ class Encoder(nn.Module):
             hs.append(h)
 
         return h, hs
+
 
 class Decoder(nn.Module):
     def __init__(self, channels=128, in_channels=3, depth=3, time_channels=128):
@@ -88,6 +90,7 @@ class ResBlock(nn.Module):
                 nn.GroupNorm(32, channels),
                 nn.SiLU(),
             )
+
         if updownsample == "up":
             self.updownsample = nn.Upsample(scale_factor=2, mode="nearest")
         elif updownsample == "down":
@@ -97,7 +100,6 @@ class ResBlock(nn.Module):
 
         self.in_conv = nn.Conv2d(channels, out_channels, 3, 1, 1)
 
-#        self.x_upd
         self.emb_layers = nn.Sequential(
                 nn.SiLU(),
                 nn.Linear(emb_channels, out_channels)
@@ -111,7 +113,7 @@ class ResBlock(nn.Module):
 
         self.skip_connection = nn.Identity() if channels==out_channels else nn.Conv2d(channels, out_channels, 1)
 
-    def forward(self, x, time):
+    def forward(self, x, time=0):
         emb = self.emb_layers(time).unsqueeze(-1).unsqueeze(-1)
         h = self.in_layers(x)
         x = self.updownsample(x)
@@ -120,6 +122,7 @@ class ResBlock(nn.Module):
         h = h + emb
         h = self.out_layers(h)
         return self.skip_connection(x) + h
+
 
 class Attention(nn.Module):
     def __init__(self, channels):

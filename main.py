@@ -1,25 +1,31 @@
 import os 
 import torch
 import hydra
+from omegaconf import DictConfig, OmegaConf
+
 from tqdm import tqdm
 from torchvision import transforms
+from torchsummary import summary
 
 
 @hydra.main(config_path="config", config_name="config", version_base=None)
-def train(cfg):
-    print(cfg)
+def train(cfg: DictConfig):
+    print(OmegaConf.to_yaml(cfg))
 
-    
     to_pil_image = transforms.ToPILImage()
     ds = hydra.utils.instantiate(cfg.dataset, path=hydra.utils.get_original_cwd())
     model = hydra.utils.instantiate(cfg.model).cuda()
-    print(torch.tensor(ds[0][0]).shape)
+
+    # dummy = torch.tensor(ds[0][0])
+    print(model)
+
     if cfg.resume:
         model.load_state_dict(torch.load(cfg.resume))
     optim = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
     for i in tqdm(range(cfg.epochs)):
         dl = torch.utils.data.DataLoader(ds, batch_size=32)
+
         for data in dl:
             optim.zero_grad()
             image = data[0].cuda()
@@ -27,6 +33,7 @@ def train(cfg):
             loss = torch.nn.functional.mse_loss(image, rec)
             loss.backward()
             optim.step()
+
         if(i%10==0):
             if "outputs" not in os.listdir("."):
                 os.mkdir("outputs")
@@ -36,8 +43,5 @@ def train(cfg):
                 sample = torch.cat([image.squeeze(0), rec], dim=2).cpu()
                 to_pil_image(sample).save(f"outputs/sample_{i}.jpg")
             torch.save(model.state_dict(), f"outputs/weights_{i}.pt")
-
-
-
 
 train()
