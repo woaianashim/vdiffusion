@@ -5,7 +5,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from tqdm import tqdm
 from torchvision import transforms
-from torchsummary import summary
+from generate import generate
 
 
 @hydra.main(config_path="config", config_name="config", version_base=None)
@@ -24,6 +24,7 @@ def train(cfg: DictConfig):
     optim = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
     for i in tqdm(range(cfg.epochs)):
+        model.train()
         dl = torch.utils.data.DataLoader(ds, batch_size=32)
 
         for data in dl:
@@ -39,8 +40,8 @@ def train(cfg: DictConfig):
                 os.mkdir("outputs")
             with torch.no_grad():
                 image = ds[0][0].unsqueeze(0).cuda()
-                rec=model(image,torch.zeros(image.shape[0]).cuda())[0].squeeze(0)
-                sample = torch.cat([image.squeeze(0), rec], dim=2).cpu()
+                rec = generate(model)
+                sample = rec.transpose(0,1).view(3,-1, 64).cpu()
                 to_pil_image(sample).save(f"outputs/sample_{i}.jpg")
             torch.save(model.state_dict(), f"outputs/weights_{i}.pt")
 
