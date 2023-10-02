@@ -16,26 +16,30 @@ class Flower(Flowers102):
 
 
 class NoiseFlower(Flowers102):
-    def __init__(self, path):
+    def __init__(self, path, noise_steps=100, beta_init=1e-4, beta_final=2e-2):
         transform = transforms.Compose([
                 transforms.CenterCrop(500),
                 transforms.Resize((64, 64)),
-                transforms.ToTensor()
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
         super().__init__(os.path.join(path, "flower"), download=True, transform=transform)
 
-    def __getitem__(self, index, time=None, noise_steps=100, beta_init=1e-4, beta_final=2e-2):
+        betas = torch.linspace(beta_init, beta_final, noise_steps)
+        alphas = 1. - betas
+        self.alphas_hat = alphas.cumprod(0)
+        self.noise_steps = noise_steps
+
+    def __getitem__(self, index, time=None, ):
         if not time:
-            time = random.randint(1, noise_steps)
+            time = random.randint(0, self.noise_steps-1)
+
 
         image = super().__getitem__(index)[0]
-        betas = torch.linspace(beta_init, beta_final, noise_steps)
-        alphas = 1. - betas[:time]
-        alphas_hat = alphas.prod()
-
+        alpha_hat = self.alphas_hat[time]
         epsilon = torch.randn(*image.shape)
 
-        return torch.sqrt(alphas_hat) * image + torch.sqrt(1 - alphas_hat) * epsilon, epsilon, image, time
+        return torch.sqrt(alpha_hat) * image + torch.sqrt(1 - alpha_hat) * epsilon, epsilon, image, torch.tensor(time)
 
         
 

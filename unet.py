@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 
 class UNet(nn.Module):
-    def __init__(self, channels=128, in_channels=3, depth=3, time_channels=128):
+    def __init__(self, channels=128, in_channels=3, depth=4, time_channels=128):
         super().__init__()
         self.time_channels = time_channels
         self.time_input = nn.Sequential(

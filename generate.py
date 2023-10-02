@@ -1,13 +1,13 @@
 import torch
 
-def generate(model, n_samples=1, size=(3,64,64), noise_steps=100, beta_init=1e-4, beta_final=2e-2):
-    sample = torch.randn(n_samples, *size).cuda()
+def generate(model, image, time, n_samples=1, size=(3,64,64), noise_steps=100, beta_init=1e-4, beta_final=2e-2):
+    sample = image #torch.randn(n_samples, *size).cuda()
     betas = torch.linspace(beta_init, beta_final, noise_steps).cuda()
     alphas = 1. - betas
     alphas_hat = alphas.cumprod(0)
     with torch.no_grad():
         model.eval()
-        for i in reversed(range(noise_steps)):
+        for i in reversed(range(time)):
             time = i*torch.ones(n_samples).cuda()
             epsilon, _ = model(sample, time)
             alpha = alphas[i]
