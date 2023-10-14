@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from generate import generate
 
 
-@hydra.main(config_path="config", config_name="config", version_base=None)
+@hydra.main(config_path="config", config_name="config_latent", version_base=None)
 def train(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     writer = SummaryWriter()
@@ -22,12 +22,15 @@ def train(cfg: DictConfig):
                                ])
     ds = hydra.utils.instantiate(cfg.dataset, path=hydra.utils.get_original_cwd())
     model = hydra.utils.instantiate(cfg.model).cuda()
+    vae_model = hydra.utils.instantiate(cfg.vae_model).cuda()
 
     # dummy = torch.tensor(ds[0][0])
     print(model)
 
     if cfg.resume:
         model.load_state_dict(torch.load(cfg.resume))
+    if cfg.vae_resume:
+        vae_model.load_state_dict(torch.load(cfg.vae_resume))
     optim = torch.optim.AdamW(model.parameters(), lr=1e-4)
 
     pbar = tqdm(range(cfg.epochs))
@@ -59,8 +62,12 @@ def train(cfg: DictConfig):
                     else:
                         x_time = torch.randn_like(ds[0][0].unsqueeze(0)).cuda()
                         time = torch.tensor(99).cuda()
-                    rec = generate(model, x_time, time)
-                    example = invTrans(torch.cat([image.squeeze(0), x_time.squeeze(0), rec.squeeze(0)], dim=1).cpu())
+                    lat = generate(model, x_time, time)
+                    print(lat.shape, x_time.shape, image.shape)
+                    rec = vae_model.decoder(lat)
+                    image_r = vae_model.decoder(image)
+                    x_time = vae_model.decoder(x_time)
+                    example = invTrans(torch.cat([image_r.squeeze(0), x_time.squeeze(0), rec.squeeze(0)], dim=1).cpu())
                     writer.add_image(f"Noisiness {time.cpu().item()}", example, global_step=i)
                 to_pil_image(example).save(f"outputs/sample_{i}.jpg")
             torch.save(model.state_dict(), f"outputs/weights_{i}.pt")

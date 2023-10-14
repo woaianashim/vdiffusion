@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from generate import generate
 
 
-@hydra.main(config_path="config", config_name="config", version_base=None)
+@hydra.main(config_path="config", config_name="config_vae", version_base=None)
 def train(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     writer = SummaryWriter()
@@ -33,14 +33,14 @@ def train(cfg: DictConfig):
     pbar = tqdm(range(cfg.epochs))
     for i in pbar:
         model.train()
-        dl = torch.utils.data.DataLoader(ds, batch_size=12)
+        dl = torch.utils.data.DataLoader(ds, batch_size=4)
 
         running_loss = 0
         for data in dl:
             optim.zero_grad()
-            image, noise, time = data[0].cuda(), data[1].cuda(), data[3].cuda() 
-            rec, feats = model(image, time)
-            loss = torch.nn.functional.mse_loss(noise, rec)
+            image = data[0].cuda()
+            rec, feats, q_loss = model(image)
+            loss = torch.nn.functional.mse_loss(image, rec) + q_loss
             loss.backward()
             running_loss += loss.item()
             optim.step()
@@ -52,17 +52,10 @@ def train(cfg: DictConfig):
             if "outputs" not in os.listdir("."):
                 os.mkdir("outputs")
             with torch.no_grad():
-                for j in range(1, 11):
-                    if j<10:
-                        data = ds.__getitem__((i//10)%100, time=j*10)
-                        x_time, noise, image, time = data[0].unsqueeze(0).cuda(), data[1].unsqueeze(0).cuda(), data[2].unsqueeze(0).cuda(), data[3].cuda()
-                    else:
-                        x_time = torch.randn_like(ds[0][0].unsqueeze(0)).cuda()
-                        time = torch.tensor(99).cuda()
-                    rec = generate(model, x_time, time)
-                    example = invTrans(torch.cat([image.squeeze(0), x_time.squeeze(0), rec.squeeze(0)], dim=1).cpu())
-                    writer.add_image(f"Noisiness {time.cpu().item()}", example, global_step=i)
-                to_pil_image(example).save(f"outputs/sample_{i}.jpg")
+                data = ds[0][0].unsqueeze(0).cuda()
+                rec, _, _ = model(data) 
+            example = invTrans(torch.cat([data, rec], dim=2).cpu().squeeze(0))
+            to_pil_image(example).save(f"outputs/sample_{i}.jpg")
             torch.save(model.state_dict(), f"outputs/weights_{i}.pt")
 
 train()

@@ -1,0 +1,15 @@
+hydra:
+  job:
+    chdir: True
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+dataset: 
+  _target_: dataset.NoiseConverted
+model:
+  _target_: unet.UNet
+  in_channels: 256
+vae_model:
+  _target_: model.VAE
+epochs: 2500
+resume:
+vae_resume:
